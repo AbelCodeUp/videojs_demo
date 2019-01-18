@@ -1,4 +1,5 @@
 import videojs from 'video.js';
+import _ from 'lodash';
 import { createDom, countDown, removeElement } from './tools';
 import 'video.js/dist/video-js.min.css';
 import './style.scss';
@@ -16,6 +17,9 @@ export default class TCPlayer {
     this.options = options || {};
     this._imgAdverTimer = null;
     this._videoAdverTimer = null;
+
+    this.adverType = 1; //1 暂停广告 2 图片和视频中间广告
+
     this.videoRoot = createDom( 'div', {
       className:'video_container_box',
     }, this.options.root ? options.root : document.body)
@@ -51,6 +55,7 @@ export default class TCPlayer {
 
       }, function(){
           that.videoContainer = document.getElementById('myVideo');
+          let _this = this;
           that.insertStartAdvertImg( options );
           this.on('loadeddata',function(){
               console.log(this)
@@ -58,6 +63,7 @@ export default class TCPlayer {
           this.on("play", () => {
             // this.startPlay();
             // this.pausePlay(false);
+            that.adverType = 1;
             that.deleteAdvert();
             if( options.isStartVideo && options.isStartVideo.isShow ){
               options.isStartVideo.isShow = false;
@@ -66,12 +72,12 @@ export default class TCPlayer {
             }
           });
           this.on("pause", () => {
-            if(options.isStopImg && options.isStopImg.isShow){
+            if(that.adverType == 1 && options.isStopImg && options.isStopImg.isShow){
               that.insertPauseAdvertImg( options.isStopImg );
             }
           });
           //监听时间变化
-          this.on("timeupdate", () => {
+          this.on("timeupdate", _.throttle(() => {
             // 计算观看进度
             let currentTime = this.currentTime();
             let duration = this.duration();
@@ -80,14 +86,19 @@ export default class TCPlayer {
             if( progress2 >= 1 ){
               if( options.isInsertImg && options.isInsertImg.isShow ){
                 let { adCount, intervalTime, playTime, info } = options.isInsertImg;
-                let temp = progress2 / Number(intervalTime/1000)
+                let temp = progress2 / Number(intervalTime/1000);
                 if( temp <= adCount ){
                   if( /(^[0-9]\d*$)/.test(temp) ){ // TODO: 有问题  that.adverNumber
                     if(that.imgFalg){
                       that.imgFalg = false;
                       let item = info[temp-1];
                       if( item.isShow ){
-                        that.insertAdvertImg( item, playTime );
+                        that.adverType = 2;
+                        clearTimeout(that._imgTimer);
+                        that._imgTimer = setTimeout(()=>{
+                          _this.pause();
+                          that.insertAdvertImg( item, playTime );
+                        },1000);
                         return false;
                       }
                     }
@@ -103,7 +114,13 @@ export default class TCPlayer {
                       that.videoFalg = false;
                       let item = info[temp-1];
                       if( item.isShow ){
-                        that.insertAdvertVideo( item, playTime, false );
+                        that.adverType = 2;
+                        clearTimeout(that._videoTimer);
+                        that._videoTimer = setTimeout(()=>{
+                          _this.pause();
+                          that.insertAdvertVideo( item, playTime, false );
+                        },1000);
+
                         return false;
                       }
                     }
@@ -111,7 +128,7 @@ export default class TCPlayer {
                 }
               }
             }
-          });
+          }));
 
           this.on('ended',function(){
                this.pause();
@@ -218,7 +235,6 @@ export default class TCPlayer {
   createPauseAdverImg( option  ){
     var that = this;
     var pauseAdverBox = {
-      id:'pauseAdverBox',
       className:'tk_pause_img_box'
     }
     var closeBtn = {
@@ -259,6 +275,13 @@ export default class TCPlayer {
       this.createPauseAdverImg( option );
     }
   }
+  /**
+   * 插入视频广告
+   * @param  {[type]}  options        [视频广告信息]
+   * @param  {Number}  [playTime=0]   [description]
+   * @param  {Boolean} [isCount=true] [是否显示倒计时关闭按钮]
+   * @return {[type]}                 [description]
+   */
   insertAdvertVideo ( options, playTime=0, isCount=true ){
 
     this.createAdverVideo( options, playTime, isCount);
@@ -276,6 +299,7 @@ export default class TCPlayer {
       removeElement( advertVideo );
       this.advertVideo = null;
     }
+    this.player.play(); //恢复播放
   }
 }
 
