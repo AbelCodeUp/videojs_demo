@@ -58,7 +58,7 @@ export default class TCPlayer {
           let _this = this;
           that.insertStartAdvertImg( options );
           this.on('loadeddata',function(){
-              console.log(this)
+              // console.log(this)
           })
           this.on("play", () => {
             // this.startPlay();
@@ -71,11 +71,21 @@ export default class TCPlayer {
               that.insertAdvertVideo( options.isStartVideo );
             }
           });
+
           this.on("pause", () => {
             if(that.adverType == 1 && options.isStopImg && options.isStopImg.isShow){
               that.insertPauseAdvertImg( options.isStopImg );
             }
           });
+          // 视频进度
+          let hdButton = videojs.createEl('button', {
+            className:  'tk_timeout',
+            'role': 'button'
+          });
+          this.controlBar.addChild('button', {
+            'el':hdButton
+          });
+
           //监听时间变化
           this.on("timeupdate", _.throttle(() => {
             // 计算观看进度
@@ -83,11 +93,13 @@ export default class TCPlayer {
             let duration = this.duration();
             let progress = ((100 * currentTime) / duration).toFixed(0);
             let progress2 = currentTime.toFixed(0);
+            hdButton.innerHTML = '已观看: '+progress + '%';
+
             if( progress2 >= 1 ){
               if( options.isInsertImg && options.isInsertImg.isShow ){
                 let { adCount, intervalTime, playTime, info } = options.isInsertImg;
                 let temp = progress2 / Number(intervalTime/1000);
-                if( temp <= adCount ){
+                if( temp <= adCount &&  info.length > 0 ){
                   if( /(^[0-9]\d*$)/.test(temp) ){ // TODO: 有问题  that.adverNumber
                     if(that.imgFalg){
                       that.imgFalg = false;
@@ -105,10 +117,10 @@ export default class TCPlayer {
                   }
                 }
               }
-              if( options.isInsertVideo && options.isInsertVideo.isShow ){
+              if( options.isInsertVideo && options.isInsertVideo.isShow ) {
                 let { adCount, intervalTime, playTime, info } = options.isInsertVideo;
-                let temp = progress2 / Number(intervalTime/1000)
-                if( temp <= adCount ){
+                let temp = progress2 / Number(intervalTime/1000);
+                if( temp <= adCount && info.length > 0 ){
                   if( /(^[0-9]\d*$)/.test(temp) ){ // TODO: 有问题  that.adverNumber
                     if(that.videoFalg){
                       that.videoFalg = false;
@@ -120,7 +132,6 @@ export default class TCPlayer {
                           _this.pause();
                           that.insertAdvertVideo( item, playTime, false );
                         },1000);
-
                         return false;
                       }
                     }
@@ -136,8 +147,7 @@ export default class TCPlayer {
           })
       });
   }
-
-
+  
   createStartAdverImg( options  ){
     var aProp = {
       id:'tk_advert_hover',
@@ -339,19 +349,19 @@ export default class TCPlayer {
       adCount: 2, //广告数量
       intervalTime: 8000, //广告间隔
       playTime: 3000, //显示时长
-      info: [{
-          "isShow": true,
-          "url": "https://bla.gtimg.com/qqlive/201811/txspn_L1Yz_20181101113423327507.jpg",
-          "title": "",
-          "href": "http://www.talk-cloud.com/"
-        },
-        {
-          "isShow": true,
-          "url": "https://hk.ulifestyle.com.hk/cms/images/topic/1024/201705/20170511134350_0_32.jpg",
-          "title": "",
-          "href": "http://www.talk-cloud.com/"
-        },
-      ]
+      info:  [{
+            "isShow": true,
+            "url": "https://bla.gtimg.com/qqlive/201811/txspn_L1Yz_20181101113423327507.jpg",
+            "title": "",
+            "href": "http://www.talk-cloud.com/"
+          },
+          {
+            "isShow": true,
+            "url": "https://hk.ulifestyle.com.hk/cms/images/topic/1024/201705/20170511134350_0_32.jpg",
+            "title": "",
+            "href": "http://www.talk-cloud.com/"
+          },
+        ]
     },
     //播放中视频广告
     isInsertVideo: {
