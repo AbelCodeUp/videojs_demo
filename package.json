@@ -13,8 +13,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "es6-promise": "^4.2.5",
     "lodash": "^4.17.11",
-    "video.js": "^7.4.1"
+    "video.js": "^7.4.1",
+    "whatwg-fetch": "^3.0.0"
   },
   "devDependencies": {
     "babel-core": "^6.26.0",

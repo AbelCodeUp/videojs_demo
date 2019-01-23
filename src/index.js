@@ -1,9 +1,13 @@
 import videojs from 'video.js';
+import "whatwg-fetch";
+import "es6-promise/auto";
 import _ from 'lodash';
 import { createDom, countDown, removeElement } from './tools';
 import 'video.js/dist/video-js.min.css';
 import './style.scss';
 const videoUrl = require('./media/father.mp4');
+videojs.options.flash.swf = "videojs/video-js.swf";//flash路径，有一些html播放不了的视频，就需要用到flash播放。这一句话要加在在videojs.js引入之后使用
+
 
 export default class TCPlayer {
   constructor(options) {
@@ -41,18 +45,15 @@ export default class TCPlayer {
     this.player  = videojs("myVideo", {
         autoplay: false,
         controls: true,
-        width: 600,
-        height: 256,
         loop: false,
         muted: true,
         preload:'none',
         playsinline:true,
         poster:'',
         sources: [{
-          src: videoUrl,
+          src:  videoUrl,
           type: 'video/mp4'
         }],
-
       }, function(){
           that.videoContainer = document.getElementById('myVideo');
           let _this = this;
@@ -85,6 +86,7 @@ export default class TCPlayer {
           this.controlBar.addChild('button', {
             'el':hdButton
           });
+          this.controlBar.el_.insertBefore(hdButton,this.controlBar.fullscreenToggle.el_);
 
           //监听时间变化
           this.on("timeupdate", _.throttle(() => {
@@ -146,8 +148,22 @@ export default class TCPlayer {
                // this.hide()
           })
       });
+    // this.getVideoUrl({
+    //   fileno:'5285890784446012081',
+    //   expirdate:'1553345474'
+    // });
   }
-  
+
+  getVideoUrl( { fileno, expirdate } ){
+    fetch(`http://vtest.sharenb.com/home/index/getsafechain?fileno=${fileno}&expirdate=${expirdate}`).then(res => {
+        return res.json();
+    }).then(res => {
+        let MediaUrl = res.MediaInfoSet[0].BasicInfo.MediaUrl
+        this.player.src(MediaUrl);
+        this.player.load();
+    });
+  }
+
   createStartAdverImg( options  ){
     var aProp = {
       id:'tk_advert_hover',
@@ -206,10 +222,9 @@ export default class TCPlayer {
     },this.videoRoot);
     this.advertVideo = videojs('adver_video',{
       autoplay:true,
-      muted:true,
+      muted:false,
       playsinline:true,
-      width:600,
-      height:256,
+      controls:true,
       sources: [{
         src: option.url || videoUrl,
         type: 'video/mp4'
@@ -217,6 +232,39 @@ export default class TCPlayer {
     },function(){
       // option.isShow = false;
       var _this = this;
+      // 视频进度
+      let adverBars = this.controlBar;
+      for (var obj in adverBars) {
+        if (adverBars.hasOwnProperty(obj)) {
+          // /volumePanel
+          if( adverBars[obj] && obj !== 'volumePanel' && adverBars[obj].el_ ){
+            switch (obj) {
+              case 'progressControl':
+                  adverBars[obj].el_.style.display = 'none';
+                break;
+              case 'playToggle':
+                adverBars[obj].el_.style.display = 'none';
+                break;
+              case 'timeDivider':
+                  adverBars[obj].el_.style.display = 'none';
+                break;
+              case 'currentTimeDisplay':
+                  adverBars[obj].el_.style.display = 'none';
+                break;
+              case 'fullscreenToggle':
+                  adverBars[obj].el_.style.display = 'none';
+                break;
+              case 'remainingTimeDisplay':
+                  adverBars[obj].el_.style.display = 'none';
+                break;
+              default:
+
+            }
+          }
+        }
+      }
+      // console.log(this.controlBar);
+
       let { closeType, playTime } = option;
       //倒计时
       countDown( playTimer?playTimer:playTime ,function(){
@@ -316,7 +364,8 @@ export default class TCPlayer {
 //接口返回数据
   var videoInfo = {
     root:document.getElementById('root'),
-    "file": videoUrl,
+    "fileId":'5285890784446012081',
+    file:videoUrl,
     "isDownloadShow": false,
     "isDownloadUrl": "http://ddadofadfa/asdfjahsdfasdf/asdfa.mp4",
     "expireDate": "5cf33e27",

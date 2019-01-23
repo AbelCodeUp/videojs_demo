@@ -26,7 +26,7 @@ const options = {
     }
 };
 
-let port = 9001;
+let port = 3000;
 
 newConfig = strategyMerge(config,{
     mode:'development',
