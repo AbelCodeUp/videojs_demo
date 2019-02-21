@@ -26,17 +26,16 @@ const options = {
     }
 };
 
-let port = 3000;
+let port = 9000;
 
 newConfig = strategyMerge(config,{
-    mode:'development',
     entry: [
         'webpack-hot-middleware/client?reload=true',
         './src/index.js'
     ],
     plugins: [
         new webpack.HotModuleReplacementPlugin(),
-        new OpenBrowserPlugin({url: `http://${ip.address()}:${port}/`}),
+        new OpenBrowserPlugin({url: `http://${ip.address()}:${port}`}),
     ]
 });
 

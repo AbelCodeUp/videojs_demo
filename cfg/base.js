@@ -27,11 +27,6 @@ module.exports = {
         }
       },
       {
-        test: /\.tsx?$/,
-        loader: "awesome-typescript-loader"
-      },
-      {
-        enforce: "pre",
         test: /\.js$/,
         loader: "source-map-loader"
       }
@@ -43,16 +38,12 @@ module.exports = {
       name: "index.html",
       template: "./public/index.html"
     }),
-    new CleanFolder(["dist"], {
+    new CleanFolder(['dist'],{
       root: dfPath.root
     }),
     new webpack.ProvidePlugin({
       _: "lodash",
-    })
-  ],
 
-  resolve: {
-    extensions: [".ts", ".tsx", ".js", ".json"],
-    modules: ["node_modules", dfPath.root, dfPath.src]
-  }
+    })
+  ]
 };

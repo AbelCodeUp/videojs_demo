@@ -3,81 +3,97 @@ import "whatwg-fetch";
 import "es6-promise/auto";
 import _ from 'lodash';
 import { createDom, countDown, removeElement } from './tools';
-import 'video.js/dist/video-js.min.css';
-import './style.scss';
-const videoUrl = require('./media/father.mp4');
-videojs.options.flash.swf = "videojs/video-js.swf";//flash路径，有一些html播放不了的视频，就需要用到flash播放。这一句话要加在在videojs.js引入之后使用
+import './css/video.scss';
+import './css/style.scss';
 
 
-export default class TCPlayer {
+export default class TkPlayer {
   constructor(options) {
     this.player = null;
     this.advertImg = null;
+    this.advertStartImg = null;
+    this.advertPauseImg = null;
+    this.k_video_timer = null;
     this.advertVideo = null;
-    this.adverNumber = 1; // 播放的广告索引
-    this.adverVideoNumber  = 1; // 播放的广告索引
+    this.timeFlag = true;
     this.imgFalg = true;
     this.videoFalg = true;
-    this.options = options || {};
-    this._imgAdverTimer = null;
-    this._videoAdverTimer = null;
 
+    this.options = options || {};
+    this._expireDate = options.expireDate || 0;
     this.adverType = 1; //1 暂停广告 2 图片和视频中间广告
+    this.videoType = 1; //1 主视频  2 开头广告 3 普通广告
+    this.videoContainer = null;
+
+    this.startVideo = false, //开始广告
+    this.adverVideo=false, // 中间视频广告
+    this.adverRightImg=false, //右下角广告
+    this.adverStopImg=false, //暂停广告
+    this.mainVideo=false, //正片
+
+    this.isStartLoad = false;
+
+    this.AdverVideoItem = 0; //插入广告当前是第几个
 
     this.videoRoot = createDom( 'div', {
       className:'video_container_box',
-    }, this.options.root ? options.root : document.body)
-    this.videoContainer = null;
+    }, options.root ? options.root : document.body);
+
 
     var vProp = {
       id:'myVideo',
-      className:'video-js vjs-default-skin'
+      className:'video-js vjs-default-skin adver_video'
     };
-    createDom( 'video', vProp, this.videoRoot); // 插入videoDOM
-    this.initPlay();
+    let vDom = createDom( 'video', vProp, this.videoRoot); // 插入videoDOM
+    vDom.setAttribute('playsinline','playsinline');
+    vDom.setAttribute('webkit-playsinline','webkit-playsinline');
+    this.initPlay(options);
   }
 
-  initPlay(){
+  initPlay(options){
     let that = this;
-    let { options } = this;
-    var videoUrl = options.file || '';
     var startImg = (options.isStartImg && options.isStartImg.isShow) ? options.isStartImg.url : '';
+    let showVideo = {
+      fileid:'',
+    }
     this.player  = videojs("myVideo", {
-        autoplay: false,
         controls: true,
         loop: false,
-        muted: true,
+        muted: false,
         preload:'none',
         playsinline:true,
         poster:'',
-        sources: [{
-          src:  videoUrl,
-          type: 'video/mp4'
-        }],
+        language: 'zh-CN',
+        control : {
+            captionsButton : false,
+            chaptersButton: false,
+            subtitlesButton:false,
+            liveDisplay:false,
+            playbackRateMenuButton:false
+        }
       }, function(){
           that.videoContainer = document.getElementById('myVideo');
           let _this = this;
-          that.insertStartAdvertImg( options );
+          if( options.isStartImg && options.isStartImg.isShow ){
+            that.createStartAdverImg( options );
+          }
           this.on('loadeddata',function(){
-              // console.log(this)
+            that.isStartLoad = true;
+            // console.log(this.cache_);
           })
           this.on("play", () => {
-            // this.startPlay();
-            // this.pausePlay(false);
-            that.adverType = 1;
-            that.deleteAdvert();
-            if( options.isStartVideo && options.isStartVideo.isShow ){
-              options.isStartVideo.isShow = false;
-              this.pause();
-              that.insertAdvertVideo( options.isStartVideo );
-            }
+            that.deleteStartImgAdvert();
+            that.deletePauseImgAdvert();
           });
 
           this.on("pause", () => {
-            if(that.adverType == 1 && options.isStopImg && options.isStopImg.isShow){
+            if(that.adverStopImg && options.isStopImg && options.isStopImg.isShow){
               that.insertPauseAdvertImg( options.isStopImg );
             }
           });
+          if( that.mainVideo || that.adverVideo ){
+            this.autoplay(true);
+          }
           // 视频进度
           let hdButton = videojs.createEl('button', {
             className:  'tk_timeout',
@@ -88,52 +104,36 @@ export default class TCPlayer {
           });
           this.controlBar.el_.insertBefore(hdButton,this.controlBar.fullscreenToggle.el_);
 
+          let editVideo = function( fileid ){
+            that.getVideoUrl(Object.assign({
+              expirdate: that._expireDate
+            },{fileid}),that.player);
+          }
+
           //监听时间变化
-          this.on("timeupdate", _.throttle(() => {
+          this.on("timeupdate",_.throttle(() => {
             // 计算观看进度
             let currentTime = this.currentTime();
             let duration = this.duration();
             let progress = ((100 * currentTime) / duration).toFixed(0);
             let progress2 = currentTime.toFixed(0);
-            hdButton.innerHTML = '已观看: '+progress + '%';
 
-            if( progress2 >= 1 ){
+            if( that.adverRightImg ){
               if( options.isInsertImg && options.isInsertImg.isShow ){
                 let { adCount, intervalTime, playTime, info } = options.isInsertImg;
                 let temp = progress2 / Number(intervalTime/1000);
-                if( temp <= adCount &&  info.length > 0 ){
-                  if( /(^[0-9]\d*$)/.test(temp) ){ // TODO: 有问题  that.adverNumber
+                if( temp > 0 && temp <= adCount &&  info.length > 0 ){
+                  if( /(^[0-9]\d*$)/.test(temp) ){
                     if(that.imgFalg){
                       that.imgFalg = false;
+
                       let item = info[temp-1];
-                      if( item.isShow ){
-                        that.adverType = 2;
-                        clearTimeout(that._imgTimer);
-                        that._imgTimer = setTimeout(()=>{
-                          _this.pause();
-                          that.insertAdvertImg( item, playTime );
-                        },1000);
-                        return false;
-                      }
-                    }
-                  }
-                }
-              }
-              if( options.isInsertVideo && options.isInsertVideo.isShow ) {
-                let { adCount, intervalTime, playTime, info } = options.isInsertVideo;
-                let temp = progress2 / Number(intervalTime/1000);
-                if( temp <= adCount && info.length > 0 ){
-                  if( /(^[0-9]\d*$)/.test(temp) ){ // TODO: 有问题  that.adverNumber
-                    if(that.videoFalg){
-                      that.videoFalg = false;
-                      let item = info[temp-1];
-                      if( item.isShow ){
-                        that.adverType = 2;
-                        clearTimeout(that._videoTimer);
-                        that._videoTimer = setTimeout(()=>{
-                          _this.pause();
-                          that.insertAdvertVideo( item, playTime, false );
-                        },1000);
+
+                      if( item && item.isShow ){
+                        // clearTimeout(that._imgTimer);
+                        // that._imgTimer = setTimeout(()=>{
+                        that.insertAdvertImg( item, playTime );
+                        // },1000);
                         return false;
                       }
                     }
@@ -141,45 +141,212 @@ export default class TCPlayer {
                 }
               }
             }
-          }));
+
+            if( that.adverVideo ){
+              that.adverRightImg = false; //关闭图片广告
+              that.adverStopImg = false;
+
+
+              let startTime = options.isInsertVideo.playTime;
+              if( currentTime.toFixed(0) == (startTime/1000) ){
+                that.mainVideo = true;
+                that.adverVideo = false;
+                showVideo.fileid = options.fileid;
+                let mainUrl = localStorage.getItem('mainUrl');
+                if( mainUrl ){
+                  that.player.src(mainUrl);
+                  that.player.load();
+                  this.autoplay(true);
+                  this.controls(true);
+                }
+                if(that.timeFlag){
+                  let mainPlayTime = localStorage.getItem('mainPlayTime');
+                  if( mainPlayTime && mainPlayTime ){
+                    if( that.isStartLoad ){
+                      setTimeout(()=>{
+                        this.currentTime(Number(mainPlayTime)+0.5);
+                        // this.seeking(Number(mainPlayTime)+0.5);
+                      },500);
+                    }
+                    that.timeFlag = false;
+                  }
+                }
+
+                return false;
+              }
+            }
+            if( that.mainVideo ){
+              that.adverRightImg = true; //打开图片广告
+              that.adverStopImg = true; //开启暂停广告
+              hdButton.innerHTML = '已观看: '+progress + '%';
+              if( options.isInsertVideo && options.isInsertVideo.isShow ) {
+                let { adCount, intervalTime, playTime, info } = options.isInsertVideo;
+                let temp = progress2 / Number(intervalTime/1000);
+                if( temp > 0 && temp <= adCount && info.length > 0 ){
+                  if( /(^[0-9]\d*$)/.test(temp) ){ // TODO: 有问题  that.adverNumber
+                      that.AdverVideoItem = temp-1;
+                      let item = info[temp-1];
+                      if( item && item.isShow ){
+                        that.adverVideo = true;
+                        that.timeFlag = true;
+                        that.mainVideo = false;
+                        showVideo.fileid = item.fileid;
+                        that.getVideoUrl(Object.assign({
+                          expirdate: that._expireDate
+                        },showVideo),that.player,'adverVideo');
+                        this.controls(false);
+                        localStorage.setItem('mainPlayTime', currentTime.toFixed(0) );
+                      }
+                  }
+                }
+              }
+            }
+            if( that.startVideo ){
+              that.adverRightImg = false; //关闭图片广告
+              that.adverStopImg = false;
+              let startTime = options.isStartVideo.playTime;
+              if( currentTime.toFixed(0) == (startTime/1000) ){
+                that.startVideo = false;
+                //开始播放正片
+                that.mainVideo = true;
+                showVideo.fileid = options.fileid;
+                that.getVideoUrl(Object.assign({
+                  expirdate: that._expireDate
+                },showVideo),that.player,'mainVideo');
+
+              }
+            }
+
+          },1000));
 
           this.on('ended',function(){
                this.pause();
+               // localStorage.clear();
                // this.hide()
           })
       });
-    // this.getVideoUrl({
-    //   fileno:'5285890784446012081',
-    //   expirdate:'1553345474'
-    // });
+
+    let videoType = '';
+    if( options && options.isStartVideo && options.isStartVideo.isShow ){
+      showVideo.fileid = options.isStartVideo.fileid;
+      that.startVideo = true;
+      videoType = 'startVideo';
+    } else {
+      showVideo.fileid = options.fileid;
+      that.mainVideo = true;
+      videoType = 'mainVideo';
+    }
+    this.getVideoUrl(Object.assign({
+      expirdate: that._expireDate
+    },showVideo),this.player, videoType);
+
+
+
   }
 
-  getVideoUrl( { fileno, expirdate } ){
-    fetch(`http://vtest.sharenb.com/home/index/getsafechain?fileno=${fileno}&expirdate=${expirdate}`).then(res => {
+  getVideoUrl( { fileid, expirdate }, player, type = '' ){
+    let that = this;
+    let options = that.options;
+    fetch(`http://vtest.sharenb.com/home/index/getsafechain?fileid=${fileid}&expirdate=${expirdate}`).then(res => {
         return res.json();
     }).then(res => {
-        let MediaUrl = res.MediaInfoSet[0].BasicInfo.MediaUrl
-        this.player.src(MediaUrl);
-        this.player.load();
+        let MediaUrl = res.MediaInfoSet[0].BasicInfo.MediaUrl;
+        player.src(MediaUrl);
+        player.load();
+        if( type == 'mainVideo' ){
+          player.controls(true);
+          localStorage.setItem('mainUrl',MediaUrl);
+          player.autoplay(true);
+        }
+        if( type == 'adverVideo' || type == 'startVideo' ){
+          if( this.videoFalg ){
+            this.videoFalg = false;
+            let closeType = 3; //关闭类型
+            let playTimer = 0; //播放时间
+
+            let isStartCount = true;
+            if( type == 'adverVideo' ){
+              player.controls(false);
+            }
+            player.one('play',()=>{
+              if( type == 'startVideo' ){
+                player.controls(false);
+                closeType = options.isStartVideo.closeType;
+                playTimer = options.isStartVideo.playTime;
+                //倒计时
+                let countDom = countDown( playTimer ,function(){
+                  switch (closeType) {
+                    case 0:
+                      //开始播放正片
+                      let showVideo = {
+                        fileid:''
+                      }
+                      that.mainVideo = true;
+                      that.startVideo = false;
+                      showVideo.fileid = options.fileid;
+                      that.getVideoUrl(Object.assign({
+                        expirdate: that._expireDate
+                      },showVideo),player,'mainVideo');
+                      // 移除倒倒计时
+                      removeElement(countDom);
+                      break;
+                    case 1:
+                      alert('请注册会员')
+                      break;
+                    default:
+                      return false;
+                  }
+                  that.videoFalg = true;
+                },function(){
+                  that.videoFalg = true;
+                },that.videoContainer,  true ,that.k_video_timer);
+              }
+
+            })
+          }
+        }
     });
   }
 
-  createStartAdverImg( options  ){
+  insertAdvertImg ( options, playTime ){
+    this.createAdverImg( options, playTime );
+  }
+  insertPauseAdvertImg( option ){
+    if( option && option.isShow ){
+      this.createPauseAdverImg( option );
+    }
+  }
+
+  createPauseAdverImg( option  ){
+    var that = this;
+    var pauseAdverBox = {
+      className:'tk_pause_img_box'
+    }
+    var closeBtn = {
+      className:'tk_pause_close_btn',
+      title:'关闭',
+    }
     var aProp = {
       id:'tk_advert_hover',
       className:'tk_advert_a_hover',
       target:'_blank',
-      href: options.isStartImg.href,
-      title:options.isStartImg.title
+      href: option.href,
+      title:option.title
     };
     var imgProp = {
       className:'tk_advert_start_img',
-      src:options.isStartImg.url,
+      src:option.url,
     };
 
-    var aAdvert = this.advertImg = createDom( 'a', aProp ); // 插入videoDOM
+    var bAdvert = this.advertPauseImg = createDom( 'div', pauseAdverBox ); // 插入videoDOM
+    var closeBtn = createDom( 'button', closeBtn, bAdvert ); // 插入videoDOM
+    var aAdvert =  createDom( 'a', aProp, bAdvert ); // 插入videoDOM
     createDom( 'img', imgProp, aAdvert );
-    this.videoContainer.appendChild(aAdvert);
+    this.videoContainer.appendChild(bAdvert);
+
+    closeBtn.onclick = function(){
+      that.deletePauseImgAdvert();
+    }
   }
 
   //创建广告图片
@@ -205,231 +372,62 @@ export default class TCPlayer {
     },aDom);
     //倒计时
     countDown(playTime,()=>{
-      that.deleteAdvert();
+      that.deleteImgAdvert();
       that.imgFalg = true;
     },()=>{
-      that.deleteAdvert();
+      that.deleteImgAdvert();
       that.imgFalg = true;
     },imgDomBox,that.startImg);
 
   }
 
-  createAdverVideo( option, playTimer=0, isCount = true ){
-    var that = this;
-    var videoDom = createDom('video',{
-      id:'adver_video',
-      className:'video-js vjs-default-skin adver_video'
-    },this.videoRoot);
-    this.advertVideo = videojs('adver_video',{
-      autoplay:true,
-      muted:false,
-      playsinline:true,
-      controls:true,
-      sources: [{
-        src: option.url || videoUrl,
-        type: 'video/mp4'
-      }],
-    },function(){
-      // option.isShow = false;
-      var _this = this;
-      // 视频进度
-      let adverBars = this.controlBar;
-      for (var obj in adverBars) {
-        if (adverBars.hasOwnProperty(obj)) {
-          // /volumePanel
-          if( adverBars[obj] && obj !== 'volumePanel' && adverBars[obj].el_ ){
-            switch (obj) {
-              case 'progressControl':
-                  adverBars[obj].el_.style.display = 'none';
-                break;
-              case 'playToggle':
-                adverBars[obj].el_.style.display = 'none';
-                break;
-              case 'timeDivider':
-                  adverBars[obj].el_.style.display = 'none';
-                break;
-              case 'currentTimeDisplay':
-                  adverBars[obj].el_.style.display = 'none';
-                break;
-              case 'fullscreenToggle':
-                  adverBars[obj].el_.style.display = 'none';
-                break;
-              case 'remainingTimeDisplay':
-                  adverBars[obj].el_.style.display = 'none';
-                break;
-              default:
-
-            }
-          }
-        }
-      }
-      // console.log(this.controlBar);
-
-      let { closeType, playTime } = option;
-      //倒计时
-      countDown( playTimer?playTimer:playTime ,function(){
-        switch (closeType) {
-          case 0:
-            clearInterval(this.adverTimer);
-            _this.dispose();
-            that.player.play();
-            break;
-          case 1:
-            alert('请注册会员')
-            break;
-          default:
-            return false;
-        }
-        that.videoFalg = true;
-      },function(){
-        _this.dispose();
-        that.player.play();
-        that.videoFalg = true;
-      },document.getElementById('adver_video'),isCount,that.k_video_timer)
-
-    })
-  }
-
-  createPauseAdverImg( option  ){
-    var that = this;
-    var pauseAdverBox = {
-      className:'tk_pause_img_box'
-    }
-    var closeBtn = {
-      className:'tk_pause_close_btn',
-      title:'关闭',
-    }
+  createStartAdverImg( options  ){
     var aProp = {
       id:'tk_advert_hover',
       className:'tk_advert_a_hover',
       target:'_blank',
-      href: option.href,
-      title:option.title
+      href: options.isStartImg.href,
+      title:options.isStartImg.title
     };
     var imgProp = {
       className:'tk_advert_start_img',
-      src:option.url,
+      src:options.isStartImg.url,
     };
 
-    var bAdvert = this.advertImg = createDom( 'div', pauseAdverBox ); // 插入videoDOM
-    var closeBtn = createDom( 'button', closeBtn, bAdvert ); // 插入videoDOM
-    var aAdvert =  createDom( 'a', aProp, bAdvert ); // 插入videoDOM
+    var aAdvert = this.advertStartImg = createDom( 'a', aProp ); // 插入videoDOM
     createDom( 'img', imgProp, aAdvert );
-    this.videoContainer.appendChild(bAdvert);
-    closeBtn.onclick = function(){
-      that.deleteAdvert();
-    }
+    this.videoContainer.appendChild(aAdvert);
   }
 
-
-  insertStartAdvertImg( options ){
-    if( options.isStartImg && options.isStartImg.isShow ){
-      this.createStartAdverImg( options );
-    }
-  }
-
-  insertPauseAdvertImg( option ){
-    if( option && option.isShow ){
-      this.createPauseAdverImg( option );
-    }
-  }
-  /**
-   * 插入视频广告
-   * @param  {[type]}  options        [视频广告信息]
-   * @param  {Number}  [playTime=0]   [description]
-   * @param  {Boolean} [isCount=true] [是否显示倒计时关闭按钮]
-   * @return {[type]}                 [description]
-   */
-  insertAdvertVideo ( options, playTime=0, isCount=true ){
-
-    this.createAdverVideo( options, playTime, isCount);
-  }
-  insertAdvertImg ( options, playTime ){
-    this.createAdverImg( options, playTime );
-  }
-  deleteAdvert(){
-    let { advertImg, advertVideo } = this;
+  deleteImgAdvert(){
+    let { advertImg } = this;
     if( advertImg ){
       removeElement( advertImg );
       this.advertImg = null;
     }
+  }
+
+  deleteVideoAdvert(){
+    let {  advertVideo } = this;
     if( advertVideo ){
       removeElement( advertVideo );
       this.advertVideo = null;
     }
     this.player.play(); //恢复播放
   }
-}
 
-//接口返回数据
-  var videoInfo = {
-    root:document.getElementById('root'),
-    "fileId":'5285890784446012081',
-    file:videoUrl,
-    "isDownloadShow": false,
-    "isDownloadUrl": "http://ddadofadfa/asdfjahsdfasdf/asdfa.mp4",
-    "expireDate": "5cf33e27",
-
-    //播放前图片广告
-    isStartImg: {
-      isShow: true, //是否显示
-      url: "http://dxz-uat-1252753627.cosbj.myqcloud.com/resource/img/test/1_%E5%B0%81%E9%9D%A2%E5%B9%BF%E5%91%8A.jpg", //图片链接
-      title: "播放前图片广告", //title
-      href: "http://www.talk-cloud.com/" //跳转路径
-    },
-    //播放前视频广告
-    isStartVideo: {
-      isShow: true, //是否显示
-      fileId: "5285890783952174544", //广告fileId
-      title: "播放前视频广告", //title
-      closeType: 0, // 0 随时，1 用户必须看完广告，如果点击关闭，提示注册会员
-      playTime: 10000 //播放时长
-    },
-    //暂停中图片广告
-    isStopImg: {
-      isShow: true, //是否显示
-      url: "http://dxz-uat-1252753627.cosbj.myqcloud.com/resource/img/test/4_1_%E6%92%AD%E6%94%BE%E4%B8%AD%E5%9B%BE%E7%89%87%E5%B9%BF%E5%91%8A1.png", //图片链接
-      title: "暂停中图片广告", //title
-    href: "http://www.talk-cloud.com/" //跳转路径
-    },
-    //播放中图片告
-    isInsertImg: {
-      isShow: true, //是否显示
-      adCount: 2, //广告数量
-      intervalTime: 8000, //广告间隔
-      playTime: 3000, //显示时长
-      info:  [{
-            "isShow": true,
-            "url": "https://bla.gtimg.com/qqlive/201811/txspn_L1Yz_20181101113423327507.jpg",
-            "title": "",
-            "href": "http://www.talk-cloud.com/"
-          },
-          {
-            "isShow": true,
-            "url": "https://hk.ulifestyle.com.hk/cms/images/topic/1024/201705/20170511134350_0_32.jpg",
-            "title": "",
-            "href": "http://www.talk-cloud.com/"
-          },
-        ]
-    },
-    //播放中视频广告
-    isInsertVideo: {
-      isShow: true, //是否显示
-      adCount: 2, //广告数量
-      intervalTime: 16000, //广告间隔
-      playTime: 8000, //显示时长
-      info: [{
-          "isShow": true,
-          "fileId": "5285890783698505420",
-          "title": "",
-        },
-        {
-          "isShow": true,
-          "fileId": "5285890783952174544",
-          "title": ""
-        },
-      ]
+  deleteStartImgAdvert(){
+    let { advertStartImg } = this;
+    if( advertStartImg ){
+      removeElement( advertStartImg );
+      this.advertStartImg = null;
     }
   }
-
-new TCPlayer(videoInfo);
+  deletePauseImgAdvert(){
+    let { advertPauseImg } = this;
+    if( advertPauseImg ){
+      removeElement( advertPauseImg );
+      this.advertPauseImg = null;
+    }
+  }
+}

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0, user-scalable=no"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>大学长视频播放器项目</title>
     <style>
@@ -24,6 +24,78 @@
 
 <div id="root">
 </div>
+<script type="text/javascript">
+//接口返回数据
+  var videoInfo = {
+    "root":document.getElementById('root'),
+    "fileid":'5285890784578560383',
+    // "isDownloadShow": false,
+    // "isDownloadUrl": "http://ddadofadfa/asdfjahsdfasdf/asdfa.mp4",
+    "expireDate": '10',
 
+    //播放前图片广告
+    isStartImg: {
+      isShow: true, //是否显示
+      url: "http://dxz-uat-1252753627.cosbj.myqcloud.com/resource/img/test/1_%E5%B0%81%E9%9D%A2%E5%B9%BF%E5%91%8A.jpg", //图片链接
+      title: "播放前图片广告", //title
+      href: "http://www.talk-cloud.com/" //跳转路径
+    },
+    //播放前视频广告
+    isStartVideo: {
+      isShow: true, //是否显示
+      fileid: "5285890783952174544", //广告fileid
+      title: "播放前视频广告", //title
+      closeType: 0, // 0 随时，1 用户必须看完广告，如果点击关闭，提示注册会员
+      playTime: 10000 //播放时长
+    },
+    //暂停中图片广告
+    isStopImg: {
+      isShow: true, //是否显示
+      url: "http://dxz-uat-1252753627.cosbj.myqcloud.com/resource/img/test/4_1_%E6%92%AD%E6%94%BE%E4%B8%AD%E5%9B%BE%E7%89%87%E5%B9%BF%E5%91%8A1.png", //图片链接
+      title: "暂停中图片广告", //title
+    href: "http://www.talk-cloud.com/" //跳转路径
+    },
+    //播放中图片告
+    isInsertImg: {
+      isShow: true, //是否显示
+      adCount: 2, //广告数量
+      intervalTime: 8000, //广告间隔
+      playTime: 4000, //显示时长
+      info:  [{
+            "isShow": true,
+            "url": "https://bla.gtimg.com/qqlive/201811/txspn_L1Yz_20181101113423327507.jpg",
+            "title": "",
+            "href": "http://www.talk-cloud.com/"
+          },
+          {
+            "isShow": true,
+            "url": "https://hk.ulifestyle.com.hk/cms/images/topic/1024/201705/20170511134350_0_32.jpg",
+            "title": "",
+            "href": "http://www.talk-cloud.com/"
+          },
+        ]
+    },
+    //播放中视频广告
+    isInsertVideo: {
+      isShow: true, //是否显示
+      adCount: 2, //广告数量
+      intervalTime: 6000, //广告间隔
+      playTime: 5000, //显示时长
+      info: [{
+          "isShow": true,
+          "fileid": "5285890783698505420",
+          "title": "",
+        },
+        {
+          "isShow": true,
+          "fileid": "5285890783952174544",
+          "title": ""
+        },
+      ]
+    }
+  }
+
+new TkPlayer(videoInfo);
+</script>
 </body>
 </html>
