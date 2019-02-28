@@ -240,8 +240,6 @@ export default class TkPlayer {
       expirdate: that._expireDate
     },showVideo),this.player, videoType);
 
-
-
   }
 
   getVideoUrl( { fileid, expirdate }, player, type = '' ){

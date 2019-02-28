@@ -28,7 +28,7 @@ let config = {
         chunkFilename: 'assets/js/[name].sepChunk.js',
         hashDigestLength: 6,
         library:'TkPlayer',
-        libraryTarget: "umd",
+        libraryTarget: "umd", //打凶方式 amd umd
         libraryExport: "default",
         umdNamedDefine: true,
     },
@@ -144,7 +144,7 @@ let config = {
 			NODE_ENV: 'production'
         }),
         new uglify(),
-        
+
     ],
 
     devtool: 'source-map',
